@@ -26,6 +26,7 @@ class UserController extends Controller
             })
             ->when($request->role, fn ($q) => $q->where('role', $request->role))
             ->when($request->status, fn ($q) => $q->where('status', $request->status))
+            ->when($request->organization_id, fn ($q) => $q->where('organization_id', $request->organization_id))
             ->latest()
             ->paginate($request->per_page ?? 20);
 
@@ -110,6 +111,8 @@ class UserController extends Controller
                 'finance_officer', 'admin', 'marketing',
             ])],
             'organization_id' => ['nullable', 'exists:organizations,id'],
+            'preferred_contact'   => ['nullable', 'array'],
+            'preferred_contact.*' => ['in:email,sms,scheduled_call'],
         ]);
 
         $oldRole = $user->role;
@@ -136,7 +139,7 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully',
-            'user'    => $user->fresh(),
+            'user'    => $user->fresh(['organization']),
         ]);
     }
 }

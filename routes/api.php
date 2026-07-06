@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\OrganizationController;
+use App\Http\Controllers\ProfileController;
 
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
@@ -31,6 +32,8 @@ Route::middleware(['auth:sanctum', 'active', 'role:admin'])
 // ── Public routes ──────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
 Route::get('/roles', [RoleController::class, 'index']);
 
 // ── Email verification ─────────────────────────────
@@ -56,4 +59,8 @@ Route::post('/email/resend', function (Request $request) {
 Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+    // Self-service profile & password (any authenticated, active user)
+    Route::patch('/profile', [ProfileController::class, 'update']);
+    Route::put('/password', [ProfileController::class, 'updatePassword']);
 });
