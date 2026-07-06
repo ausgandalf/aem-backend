@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\Admin\OrganizationController;
+
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
     ->prefix('admin')
@@ -16,12 +19,19 @@ Route::middleware(['auth:sanctum', 'active', 'role:admin'])
         Route::patch('/users/{user}/allow', [UserController::class, 'allow']);
         Route::patch('/users/{user}/block', [UserController::class, 'block']);
         Route::patch('/users/{user}', [UserController::class, 'update']);
+
+        Route::get('/organizations', [OrganizationController::class, 'index']);
+        Route::post('/organizations', [OrganizationController::class, 'store']);
+        Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
+        Route::patch('/organizations/{organization}', [OrganizationController::class, 'update']);
+        Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
     });
 
     
 // ── Public routes ──────────────────────────────────
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+Route::get('/roles', [RoleController::class, 'index']);
 
 // ── Email verification ─────────────────────────────
 // The link in the email points here
