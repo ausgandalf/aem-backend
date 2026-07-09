@@ -2,10 +2,12 @@
 
 namespace App\Enums;
 
-enum InspectionStatus: string
+enum ApplicationStatus: string
 {
     case PENDING = 'pending';
-    case APPROVED = 'approved';
+    case INPROGRESS = 'in_progress';
+    case ONHOLD = 'on_hold';
+    case PASSED = 'passed';
     case REJECTED = 'rejected';
 
     // Optional helper - get all values as array
@@ -19,7 +21,9 @@ enum InspectionStatus: string
     {
         return match($this) {
             self::PENDING => 'Pending',
-            self::APPROVED => 'Approved',
+            self::INPROGRESS => 'In Progress',
+            self::ONHOLD => 'On Hold',
+            self::PASSED => 'Passed',
             self::REJECTED => 'Rejected',
         };
     }

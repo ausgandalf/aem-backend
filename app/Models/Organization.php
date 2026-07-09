@@ -15,13 +15,21 @@ class Organization extends Model
         'legal_status',
         'type',
         'founded_year',
-        // Location
+        // Registered (legal) address
         'registered_country',
         'registered_state_province',
         'registered_city',
         'registered_address_line1',
         'registered_address_line2',
-        'postcode_zipcode',
+        'registered_postal_code',
+        // Operating / correspondence address
+        'current_same_as_registered',
+        'current_country',
+        'current_state_province',
+        'current_city',
+        'current_address_line1',
+        'current_address_line2',
+        'current_postal_code',
         // Contact
         'contact_email',
         'contact_phone',
@@ -49,10 +57,11 @@ class Organization extends Model
     protected function casts(): array
     {
         return [
-            'metadata'           => 'array',
-            'founded_year'       => 'integer',
-            'annual_income'      => 'decimal:2',
-            'annual_expenditure' => 'decimal:2',
+            'metadata'                    => 'array',
+            'founded_year'                => 'integer',
+            'annual_income'               => 'decimal:2',
+            'annual_expenditure'          => 'decimal:2',
+            'current_same_as_registered'  => 'boolean',
         ];
     }
 

@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('role')->index(); // mirrors the Spatie role for fast filtering
             $table->string('status')->default('pending'); // pending/active/blocked
             $table->foreignId('organization_id')->nullable()->constrained();
+            $table->string('position')->nullable();
             $table->string('referred_from')->nullable();
             $table->jsonb('preferred_contact')->default(json_encode(['email'])); // ["email", "sms", "scheduled_call"]
             $table->jsonb('metadata')->nullable();

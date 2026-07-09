@@ -9,6 +9,8 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicOrganizationController;
+use App\Http\Controllers\ApplicationController;
 
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
@@ -35,6 +37,10 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
 Route::get('/roles', [RoleController::class, 'index']);
+
+// ── Quick Apply (public) ───────────────────────────
+Route::get('/organizations', [PublicOrganizationController::class, 'index'])->middleware('throttle:30,1');
+Route::post('/apply', [ApplicationController::class, 'quickApply'])->middleware('throttle:5,1');
 
 // ── Email verification ─────────────────────────────
 // The link in the email points here

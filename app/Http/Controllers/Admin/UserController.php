@@ -111,6 +111,7 @@ class UserController extends Controller
                 'finance_officer', 'admin', 'marketing',
             ])],
             'organization_id' => ['nullable', 'exists:organizations,id'],
+            'position'        => ['nullable', 'string', 'max:255'],
             'preferred_contact'   => ['nullable', 'array'],
             'preferred_contact.*' => ['in:email,sms,scheduled_call'],
         ]);

@@ -21,13 +21,22 @@ return new class extends Migration
             $table->string('type')->nullable();
             $table->year('founded_year')->nullable();
 
-            // Location
+            // Registered (legal) address
             $table->string('registered_country')->nullable();
             $table->string('registered_state_province')->nullable();
             $table->string('registered_city')->nullable();
             $table->string('registered_address_line1')->nullable();
             $table->string('registered_address_line2')->nullable();
-            $table->string('postcode_zipcode')->nullable();
+            $table->string('registered_postal_code')->nullable();
+
+            // Operating / correspondence address (may differ from the registered one)
+            $table->boolean('current_same_as_registered')->default(true);
+            $table->string('current_country')->nullable();
+            $table->string('current_state_province')->nullable();
+            $table->string('current_city')->nullable();
+            $table->string('current_address_line1')->nullable();
+            $table->string('current_address_line2')->nullable();
+            $table->string('current_postal_code')->nullable();
 
             // Contact
             $table->string('contact_email')->nullable();

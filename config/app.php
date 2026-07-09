@@ -125,4 +125,7 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
+    // Inbox that receives a notice when a new application is submitted
+    'application_intake_email' => env('APPLICATION_INTAKE_EMAIL'),
+
 ];

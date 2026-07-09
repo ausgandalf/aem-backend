@@ -85,7 +85,7 @@ class OrganizationController extends Controller
 
     private function validateOrganization(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             // Core identity
             'name'                => ['required', 'string', 'max:255'],
             'registration_number' => ['nullable', 'string', 'max:255'],
@@ -93,13 +93,22 @@ class OrganizationController extends Controller
             'type'                => ['nullable', 'string', 'max:255'],
             'founded_year'        => ['nullable', 'integer', 'min:1800', 'max:' . (date('Y') + 1)],
 
-            // Location
+            // Registered (legal) address
             'registered_country'        => ['nullable', 'string', 'max:255'],
             'registered_state_province' => ['nullable', 'string', 'max:255'],
             'registered_city'           => ['nullable', 'string', 'max:255'],
             'registered_address_line1'  => ['nullable', 'string', 'max:255'],
             'registered_address_line2'  => ['nullable', 'string', 'max:255'],
-            'postcode_zipcode'          => ['nullable', 'string', 'max:255'],
+            'registered_postal_code'    => ['nullable', 'string', 'max:255'],
+
+            // Operating / correspondence address
+            'current_same_as_registered' => ['boolean'],
+            'current_country'            => ['nullable', 'string', 'max:255'],
+            'current_state_province'     => ['nullable', 'string', 'max:255'],
+            'current_city'               => ['nullable', 'string', 'max:255'],
+            'current_address_line1'      => ['nullable', 'string', 'max:255'],
+            'current_address_line2'      => ['nullable', 'string', 'max:255'],
+            'current_postal_code'        => ['nullable', 'string', 'max:255'],
 
             // Contact
             'contact_email' => ['nullable', 'email', 'max:255'],
@@ -124,5 +133,21 @@ class OrganizationController extends Controller
             'status' => ['nullable', 'in:pending,verified,off'],
             'note'   => ['nullable', 'string'],
         ]);
+
+        // When the operating address mirrors the registered one, don't store a stale copy
+        if (! empty($validated['current_same_as_registered'])) {
+            foreach ([
+                'current_country',
+                'current_state_province',
+                'current_city',
+                'current_address_line1',
+                'current_address_line2',
+                'current_postal_code',
+            ] as $field) {
+                $validated[$field] = null;
+            }
+        }
+
+        return $validated;
     }
 }

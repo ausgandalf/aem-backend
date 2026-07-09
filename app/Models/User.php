@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'role',
     'status',
     'organization_id',
+    'position',
     'referred_from',
     'preferred_contact',
     'metadata',
@@ -72,5 +73,17 @@ class User extends Authenticatable
     public function logs(): HasMany
     {
         return $this->hasMany(UserLog::class);
+    }
+
+    // Send the verification email via the queue (async) instead of synchronously
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new \App\Notifications\VerifyEmailQueued);
+    }
+
+    // Send the password-reset email via the queue (async) instead of synchronously
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new \App\Notifications\ResetPasswordQueued($token));
     }
 }
