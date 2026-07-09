@@ -13,13 +13,48 @@ return new class extends Migration
     {
         Schema::create('organizations', function (Blueprint $table) {
             $table->id();
+
+            // Core Identity
             $table->string('name');
-            $table->string('country', 2)->comment('ISO 3166-1 alpha-2 country code');
-            $table->string('type')->nullable();
-            $table->text('note')->nullable();
+            $table->string('registration_number')->nullable();
             $table->string('legal_status')->nullable();
-            $table->string('register_no')->nullable();
+            $table->string('type')->nullable();
+            $table->year('founded_year')->nullable();
+
+            // Location
+            $table->string('registered_country')->nullable();
+            $table->string('registered_state_province')->nullable();
+            $table->string('registered_city')->nullable();
+            $table->string('registered_address_line1')->nullable();
+            $table->string('registered_address_line2')->nullable();
+            $table->string('postcode_zipcode')->nullable();
+
+            // Contact
+            $table->string('contact_email')->nullable();
+            $table->string('contact_phone')->nullable();
+            $table->string('website_url')->nullable();
+
+            // Social Links
+            $table->string('social_facebook')->nullable();
+            $table->string('social_linkedin')->nullable();
+            $table->string('social_twitter')->nullable();
+            $table->string('social_instagram')->nullable();
+            $table->string('social_youtube')->nullable();
+            $table->string('social_whatsapp')->nullable();
+
+            // Financials
+            $table->string('currency', 3)->default('GBP');
+            $table->decimal('annual_income', 15, 2)->nullable();
+            $table->decimal('annual_expenditure', 15, 2)->nullable();
+            $table->text('reserves_policy')->nullable();
+
+            // Metadata
+            $table->string('status')->default('pending'); // pending/verified/off
+            $table->string('note')->nullable();
             $table->jsonb('metadata')->nullable();
+
+            $table->foreignId('created_by')->nullable()->constrained('users');
+            $table->foreignId('updated_by')->nullable()->constrained('users');
             $table->timestamps();
         });
     }
