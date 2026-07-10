@@ -6,6 +6,7 @@ use App\Enums\ApplicationStatus;
 use App\Models\Application;
 use App\Models\ApplicationLog;
 use App\Models\Organization;
+use App\Models\Stage;
 use App\Models\User;
 use App\Models\UserLog;
 use App\Notifications\ApplicationReceived;
@@ -59,7 +60,7 @@ class ApplicationController extends Controller
                 'details' => 'Registered via Quick Apply',
             ]);
 
-            // 3. Create the application at the first stage
+            // 3. Create the application at the submit stage (its origin)
             $application = Application::create([
                 'applicant_id'     => $applicant->id,
                 'organization_id'  => $organization->id,
@@ -69,20 +70,22 @@ class ApplicationController extends Controller
                 'currency'         => $validated['project']['currency'] ?? 'GBP',
                 'project_details'  => $validated['project']['project_details'] ?? [],
                 'current_stage'    => 'submit',
-                'current_status'   => ApplicationStatus::INPROGRESS,
+                'current_status'   => ApplicationStatus::PENDING,
                 'updated_by'       => $applicant->id,
             ]);
 
-            // 4. Audit log for the submission
-            $applicantName = trim("{$applicant->first_name} {$applicant->middle_name} {$applicant->last_name}");
-            $applicantName = preg_replace('/\s+/', ' ', $applicantName);
-            ApplicationLog::record([
-                'application_id' => $application->id,
-                'stage_key'      => 'submit',
-                'status'         => $application->current_status->value,
-                'updated_by'     => $applicant->id,
-                'description'    => "{$applicantName} submitted new application : {$application->project_title}",
-            ]);
+            // 4. Quick Apply is a real submission (same as the dashboard "Submit"):
+            //    advance submit -> evaluation_1, recording submit as passed.
+            $applicantName = preg_replace('/\s+/', ' ', trim(
+                "{$applicant->first_name} {$applicant->middle_name} {$applicant->last_name}"
+            ));
+            $application->recordTransition(
+                ApplicationStatus::PASSED,
+                'evaluation_1',
+                ApplicationStatus::PENDING,
+                $applicant->id,
+                "{$applicantName} submitted new application : {$application->project_title}",
+            );
 
             return compact('applicant', 'organization', 'application');
         });
@@ -127,26 +130,44 @@ class ApplicationController extends Controller
         return Organization::create($org);
     }
 
+    // Public Quick Apply: applicant + organization + project
     private function validatePayload(Request $request): array
     {
-        $existingOrg = $request->input('organization.organization_id');
+        $orgRequired = $request->input('organization.organization_id') ? 'nullable' : 'required';
 
-        // Org fields are required only when the applicant is registering a NEW org
-        $orgRequired = $existingOrg ? 'nullable' : 'required';
+        return $request->validate(array_merge(
+            [
+                'applicant.first_name'          => ['required', 'string', 'max:255'],
+                'applicant.middle_name'         => ['nullable', 'string', 'max:255'],
+                'applicant.last_name'           => ['required', 'string', 'max:255'],
+                'applicant.email'               => ['required', 'email', 'max:255'],
+                'applicant.phone'               => ['required', 'string', 'max:255'],
+                'applicant.preferred_contact'   => ['required', 'array', 'min:1'],
+                'applicant.preferred_contact.*' => ['in:email,sms,scheduled_call'],
+                'applicant.referred_from'       => ['required', 'string', 'max:255'],
+                'applicant.position'            => ['required', 'string', 'max:255'],
+            ],
+            $this->organizationRules($orgRequired),
+            $this->projectRules(),
+        ));
+    }
 
-        return $request->validate([
-            // About You
-            'applicant.first_name'        => ['required', 'string', 'max:255'],
-            'applicant.middle_name'       => ['nullable', 'string', 'max:255'],
-            'applicant.last_name'         => ['required', 'string', 'max:255'],
-            'applicant.email'             => ['required', 'email', 'max:255'],
-            'applicant.phone'             => ['required', 'string', 'max:255'],
-            'applicant.preferred_contact' => ['required', 'array', 'min:1'],
-            'applicant.preferred_contact.*' => ['in:email,sms,scheduled_call'],
-            'applicant.referred_from'     => ['required', 'string', 'max:255'],
-            'applicant.position'          => ['required', 'string', 'max:255'],
+    // Authenticated create/edit: organization + project + save|submit action
+    private function validateAuthenticatedInput(Request $request): array
+    {
+        $orgRequired = $request->input('organization.organization_id') ? 'nullable' : 'required';
 
-            // About Organization (either pick an existing one, or register a new one)
+        return $request->validate(array_merge(
+            ['action' => ['required', 'in:save,submit']],
+            $this->organizationRules($orgRequired),
+            $this->projectRules(),
+        ));
+    }
+
+    private function organizationRules(string $orgRequired): array
+    {
+        return [
+            // Either pick an existing org, or register a new one (fields required only when new)
             'organization.organization_id'           => ['nullable', 'exists:organizations,id'],
             'organization.name'                      => [$orgRequired, 'string', 'max:255'],
             'organization.registration_number'       => ['nullable', 'string', 'max:255'],
@@ -166,27 +187,170 @@ class ApplicationController extends Controller
             'organization.annual_income'             => ['nullable', 'numeric', 'min:0'],
             'organization.annual_expenditure'        => ['nullable', 'numeric', 'min:0'],
             'organization.reserves_policy'           => ['nullable', 'string'],
+        ];
+    }
 
-            // Project Details
+    private function projectRules(): array
+    {
+        return [
             'project.project_title'    => ['required', 'string', 'max:255'],
             'project.currency'         => ['nullable', 'string', 'size:3'],
             'project.requested_amount' => ['required', 'numeric', 'min:0'],
             'project.project_location' => ['required', 'string', 'max:255'],
 
             // Free-text project + purpose fields, stored as jsonb
-            'project.project_details'                       => ['required', 'array'],
-            'project.project_details.funding_status'        => ['required', 'string'],
-            'project.project_details.duration'              => ['required', 'string'],
-            'project.project_details.livelihood_opportunity' => ['required', 'string'],
-            'project.project_details.beneficiaries'         => ['required', 'string'],
-            'project.project_details.philanthropic_call'    => ['required', 'string'],
-            'project.project_details.measurable_impact'     => ['required', 'string'],
-            'project.project_details.track_record'          => ['required', 'string'],
-            'project.project_details.best_evidence'         => ['required', 'string'],
-            'project.project_details.monitoring_evaluation' => ['required', 'string'],
-            'project.project_details.exit'                  => ['required', 'string'],
-            'project.project_details.collaboration'         => ['required', 'string'],
+            'project.project_details'                          => ['required', 'array'],
+            'project.project_details.funding_status'           => ['required', 'string'],
+            'project.project_details.duration'                 => ['required', 'string'],
+            'project.project_details.livelihood_opportunity'   => ['required', 'string'],
+            'project.project_details.beneficiaries'            => ['required', 'string'],
+            'project.project_details.philanthropic_call'       => ['required', 'string'],
+            'project.project_details.measurable_impact'        => ['required', 'string'],
+            'project.project_details.track_record'             => ['required', 'string'],
+            'project.project_details.best_evidence'            => ['required', 'string'],
+            'project.project_details.monitoring_evaluation'    => ['required', 'string'],
+            'project.project_details.exit'                     => ['required', 'string'],
+            'project.project_details.collaboration'            => ['required', 'string'],
             'project.project_details.org_development_ambition' => ['required', 'string'],
+        ];
+    }
+
+    private function applicationAttributes(array $validated, int $userId): array
+    {
+        return [
+            'project_title'    => $validated['project']['project_title'],
+            'project_location' => $validated['project']['project_location'],
+            'requested_amount' => $validated['project']['requested_amount'] ?? null,
+            'currency'         => $validated['project']['currency'] ?? 'GBP',
+            'project_details'  => $validated['project']['project_details'] ?? [],
+            'updated_by'       => $userId,
+        ];
+    }
+
+    private function fullName(User $user): string
+    {
+        return preg_replace('/\s+/', ' ', trim("{$user->first_name} {$user->middle_name} {$user->last_name}"));
+    }
+
+    private function authorizeOwner(Request $request, Application $application): void
+    {
+        abort_if($application->applicant_id !== $request->user()->id, 403, 'This is not your application.');
+    }
+
+    // GET /api/applications - the authenticated applicant's own applications (cards)
+    public function index(Request $request): JsonResponse
+    {
+        $applications = Application::query()
+            ->where('applicant_id', $request->user()->id)
+            ->latest()
+            ->get([
+                'id', 'project_title', 'requested_amount', 'currency',
+                'current_stage', 'current_status', 'prev_stage', 'prev_status', 'created_at',
+            ]);
+
+        return response()->json($applications);
+    }
+
+    // GET /api/applications/{application} - full details + ordered progress (own only)
+    public function show(Request $request, Application $application): JsonResponse
+    {
+        $this->authorizeOwner($request, $application);
+        $application->load('organization');
+
+        $progressMap = $application->progresses()->get()->keyBy('stage_key');
+        $progress = Stage::cached()->map(fn (Stage $s) => [
+            'key'    => $s->key,
+            'label'  => $s->label,
+            'order'  => $s->order,
+            'status' => optional($progressMap->get($s->key))->status?->value,
+            'note'   => optional($progressMap->get($s->key))->note,
+        ])->values();
+
+        return response()->json([
+            'application' => $application,
+            'progress'    => $progress,
+        ]);
+    }
+
+    // POST /api/applications - authenticated applicant creates a new application
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $this->validateAuthenticatedInput($request);
+        $user = $request->user();
+        $name = $this->fullName($user);
+
+        $application = DB::transaction(function () use ($validated, $user, $name) {
+            $organization = $this->resolveOrganization($validated);
+
+            $application = Application::create(array_merge(
+                $this->applicationAttributes($validated, $user->id),
+                [
+                    'applicant_id'    => $user->id,
+                    'organization_id' => $organization->id,
+                    'current_stage'   => 'submit',
+                    'current_status'  => ApplicationStatus::PENDING,
+                ],
+            ));
+
+            $application->upsertProgress('submit', ApplicationStatus::PENDING);
+            ApplicationLog::record([
+                'application_id' => $application->id,
+                'stage_key'      => 'submit',
+                'status'         => ApplicationStatus::PENDING->value,
+                'updated_by'     => $user->id,
+                'description'    => "{$name} created new application : {$application->project_title}",
+            ]);
+
+            if ($validated['action'] === 'submit') {
+                $application->submitForReview($user->id, $name);
+            }
+
+            return $application;
+        });
+
+        return response()->json([
+            'message'        => $validated['action'] === 'submit'
+                ? 'Application submitted for review.'
+                : 'Application saved.',
+            'application_id' => $application->id,
+        ], 201);
+    }
+
+    // PATCH /api/applications/{application} - edit at submit stage, then save or submit
+    public function update(Request $request, Application $application): JsonResponse
+    {
+        $this->authorizeOwner($request, $application);
+
+        if ($application->current_stage !== 'submit') {
+            return response()->json([
+                'message' => 'This application has moved past submission and can no longer be edited.',
+            ], 422);
+        }
+
+        $validated = $this->validateAuthenticatedInput($request);
+        $user = $request->user();
+        $name = $this->fullName($user);
+
+        DB::transaction(function () use ($validated, $user, $name, $application) {
+            $organization = $this->resolveOrganization($validated);
+
+            $application->update(array_merge(
+                $this->applicationAttributes($validated, $user->id),
+                ['organization_id' => $organization->id],
+            ));
+
+            if ($validated['action'] === 'submit') {
+                $application->submitForReview($user->id, $name);
+            } else {
+                $application->saveDraft($user->id, $name);
+            }
+        });
+
+        return response()->json([
+            'message'        => $validated['action'] === 'submit'
+                ? 'Application submitted for review.'
+                : 'Application saved.',
+            'application_id' => $application->id,
         ]);
     }
 }

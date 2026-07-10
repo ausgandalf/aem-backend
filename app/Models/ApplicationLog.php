@@ -15,7 +15,16 @@ class ApplicationLog extends Model
         'status',
         'updated_by',
         'description',
+        'note',
+        'metadata',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'metadata' => 'array',
+        ];
+    }
 
     /**
      * Append an audit entry for an application-related action.

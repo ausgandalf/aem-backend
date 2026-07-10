@@ -62,4 +62,83 @@ class Application extends Model
     {
         return $this->hasMany(ApplicationLog::class);
     }
+
+    public function progresses(): HasMany
+    {
+        return $this->hasMany(Progress::class);
+    }
+
+    /**
+     * The workflow engine: move prev/current stage+status, write an audit log,
+     * and upsert the per-stage progress snapshot(s). Every stage move goes through here.
+     */
+    public function recordTransition(
+        ApplicationStatus $outgoingStatus,
+        string $toStage,
+        ApplicationStatus $toStatus,
+        int $userId,
+        string $description,
+        ?string $note = null,
+    ): void {
+        $fromStage = $this->current_stage;
+
+        $this->update([
+            'prev_stage'     => $fromStage,
+            'prev_status'    => $outgoingStatus,
+            'current_stage'  => $toStage,
+            'current_status' => $toStatus,
+            'updated_by'     => $userId,
+        ]);
+
+        ApplicationLog::record([
+            'application_id' => $this->id,
+            'stage_key'      => $fromStage,
+            'status'         => $toStatus->value,
+            'updated_by'     => $userId,
+            'description'    => $description,
+            'note'           => $note,
+        ]);
+
+        // Snapshot the outgoing stage's status, then the incoming stage's (if different)
+        $this->upsertProgress($fromStage, $outgoingStatus, $note);
+        if ($toStage !== $fromStage) {
+            $this->upsertProgress($toStage, $toStatus);
+        }
+    }
+
+    public function upsertProgress(
+        string $stageKey,
+        ApplicationStatus $status,
+        ?string $note = null,
+        ?array $metadata = null,
+    ): void {
+        Progress::updateOrCreate(
+            ['application_id' => $this->id, 'stage_key' => $stageKey],
+            ['status' => $status, 'note' => $note, 'metadata' => $metadata],
+        );
+    }
+
+    // Applicant "Save": stays at submit, prev + current both submit/pending
+    public function saveDraft(int $userId, string $applicantName): void
+    {
+        $this->recordTransition(
+            ApplicationStatus::PENDING,
+            'submit',
+            ApplicationStatus::PENDING,
+            $userId,
+            "{$applicantName} saved application draft : {$this->project_title}",
+        );
+    }
+
+    // Applicant "Submit": submit passed → moves to evaluation_1/pending
+    public function submitForReview(int $userId, string $applicantName): void
+    {
+        $this->recordTransition(
+            ApplicationStatus::PASSED,
+            'evaluation_1',
+            ApplicationStatus::PENDING,
+            $userId,
+            "{$applicantName} submitted application for review : {$this->project_title}",
+        );
+    }
 }

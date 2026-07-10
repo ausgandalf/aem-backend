@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicOrganizationController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\StageController;
 
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
@@ -69,4 +70,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Self-service profile & password (any authenticated, active user)
     Route::patch('/profile', [ProfileController::class, 'update']);
     Route::put('/password', [ProfileController::class, 'updatePassword']);
+
+    // Workflow stages (cached, read-only)
+    Route::get('/stages', [StageController::class, 'index']);
+
+    // Applicant's own applications
+    Route::get('/applications', [ApplicationController::class, 'index']);
+    Route::post('/applications', [ApplicationController::class, 'store']);
+    Route::get('/applications/{application}', [ApplicationController::class, 'show']);
+    Route::patch('/applications/{application}', [ApplicationController::class, 'update']);
 });

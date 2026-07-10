@@ -11,20 +11,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('application_logs', function (Blueprint $table) {
+        Schema::create('progresses', function (Blueprint $table) {
             $table->id();
 
             $table->foreignId('application_id')->constrained('applications')->cascadeOnDelete();
-            $table->string('stage_key')->nullable()->index(); // stages.key at the time of the action
-            $table->unsignedBigInteger('inspection_id')->default(0); // 0 = not applicable
-            $table->unsignedBigInteger('document_id')->default(0);   // 0 = not applicable
+            $table->string('stage_key');
             $table->string('status')->nullable(); // ApplicationStatus value
-            $table->foreignId('updated_by')->nullable()->constrained('users');
-            $table->text('description')->nullable();
             $table->text('note')->nullable();
             $table->jsonb('metadata')->nullable();
 
             $table->timestamps();
+
+            // Latest snapshot per (application, stage) — one row each
+            $table->unique(['application_id', 'stage_key']);
+
+            $table->foreign('stage_key')
+                ->references('key')
+                ->on('stages')
+                ->onUpdate('cascade');
         });
     }
 
@@ -33,6 +37,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('application_logs');
+        Schema::dropIfExists('progresses');
     }
 };
