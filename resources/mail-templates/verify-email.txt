@@ -1,0 +1,10 @@
+VERIFY YOUR EMAIL ADDRESS
+
+Hello {{ NAME }},
+
+Please confirm your email address to activate your WRBLO account by
+visiting the link below:
+
+{{ ACTION_URL }}
+
+If you did not create an account, no further action is required.

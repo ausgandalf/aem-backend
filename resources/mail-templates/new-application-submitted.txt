@@ -1,0 +1,9 @@
+NEW APPLICATION SUBMITTED
+
+A new application has been submitted for review.
+
+Applicant:        {{ APPLICANT_NAME }}
+Organization:     {{ ORG_NAME }}
+Project:          {{ PROJECT_TITLE }}
+Requested amount: {{ AMOUNT }}
+Location:         {{ LOCATION }}

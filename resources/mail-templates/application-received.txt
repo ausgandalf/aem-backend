@@ -1,0 +1,12 @@
+NEW APPLICATION DRAFT CREATED
+
+Hello {{ NAME }},
+
+A new application draft has been created under your WRBLO account.
+
+Project: {{ PROJECT_TITLE }}
+
+To send it for review, sign in to WRBLO, open the application, and click Submit:
+{{ LOGIN_URL }}
+
+If you did not start this application, you can safely ignore this email.

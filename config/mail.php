@@ -18,6 +18,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email Logo URL
+    |--------------------------------------------------------------------------
+    |
+    | Absolute URL of the WRBLO logo shown in the email layout header. Point
+    | this at a hosted image; if it can't load, the "WRBLO" alt text shows.
+    |
+    */
+
+    'logo_url' => env('MAIL_LOGO_URL', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/logo.png'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------
     |

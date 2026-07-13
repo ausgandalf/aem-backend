@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -26,41 +27,46 @@ class ApplicationController extends Controller
     {
         $validated = $this->validatePayload($request);
 
-        // Guard: a public form must not silently attach to an existing account
-        if (User::where('email', $validated['applicant']['email'])->exists()) {
-            return response()->json([
-                'message' => 'An account with this email already exists. Please log in and submit from your dashboard.',
-            ], 422);
-        }
+        // Attach the draft to an existing account if the email is known, otherwise
+        // create a fresh applicant. Either way the draft lands under that account and
+        // the account owner is emailed — nobody can submit without signing in.
+        $existingUser = User::where('email', $validated['applicant']['email'])->first();
 
-        $result = DB::transaction(function () use ($validated) {
+        $result = DB::transaction(function () use ($validated, $existingUser) {
             // 1. Resolve or create the organization
             $organization = $this->resolveOrganization($validated);
 
-            // 2. Create the applicant (random password; they set one later via reset link)
-            $applicant = User::create([
-                'first_name'        => $validated['applicant']['first_name'],
-                'middle_name'       => $validated['applicant']['middle_name'] ?? null,
-                'last_name'         => $validated['applicant']['last_name'],
-                'email'             => $validated['applicant']['email'],
-                'phone'             => $validated['applicant']['phone'] ?? null,
-                'password'          => Hash::make(Str::random(32)),
-                'role'              => 'applicant',
-                'status'            => 'pending',
-                'organization_id'   => $organization->id,
-                'position'          => $validated['applicant']['position'] ?? null,
-                'referred_from'     => $validated['applicant']['referred_from'] ?? null,
-                'preferred_contact' => $validated['applicant']['preferred_contact'] ?? ['email'],
-            ]);
-            $applicant->assignRole('applicant');
+            // 2. Reuse the existing account, or create a new applicant
+            if ($existingUser) {
+                $applicant = $existingUser;
+                $isNew = false;
+            } else {
+                // Random password; the applicant sets a real one via the reset link
+                $applicant = User::create([
+                    'first_name'        => $validated['applicant']['first_name'],
+                    'middle_name'       => $validated['applicant']['middle_name'] ?? null,
+                    'last_name'         => $validated['applicant']['last_name'],
+                    'email'             => $validated['applicant']['email'],
+                    'phone'             => $validated['applicant']['phone'] ?? null,
+                    'password'          => Hash::make(Str::random(32)),
+                    'role'              => 'applicant',
+                    'status'            => 'pending',
+                    'organization_id'   => $organization->id,
+                    'position'          => $validated['applicant']['position'] ?? null,
+                    'referred_from'     => $validated['applicant']['referred_from'] ?? null,
+                    'preferred_contact' => $validated['applicant']['preferred_contact'] ?? ['email'],
+                ]);
+                $applicant->assignRole('applicant');
+                UserLog::create([
+                    'user_id' => $applicant->id,
+                    'action'  => 'signup',
+                    'details' => 'Registered via Quick Apply',
+                ]);
+                $isNew = true;
+            }
 
-            UserLog::create([
-                'user_id' => $applicant->id,
-                'action'  => 'signup',
-                'details' => 'Registered via Quick Apply',
-            ]);
-
-            // 3. Create the application at the submit stage (its origin)
+            // 3. Create the application as a DRAFT at the submit stage.
+            //    The applicant must return to AEM and hit Submit to send it to review.
             $application = Application::create([
                 'applicant_id'     => $applicant->id,
                 'organization_id'  => $organization->id,
@@ -74,44 +80,62 @@ class ApplicationController extends Controller
                 'updated_by'       => $applicant->id,
             ]);
 
-            // 4. Quick Apply is a real submission (same as the dashboard "Submit"):
-            //    advance submit -> evaluation_1, recording submit as passed.
+            // 4. Audit log + initial progress snapshot for the draft
             $applicantName = preg_replace('/\s+/', ' ', trim(
                 "{$applicant->first_name} {$applicant->middle_name} {$applicant->last_name}"
             ));
-            $application->recordTransition(
-                ApplicationStatus::PASSED,
-                'evaluation_1',
-                ApplicationStatus::PENDING,
-                $applicant->id,
-                "{$applicantName} submitted new application : {$application->project_title}",
-            );
+            ApplicationLog::record([
+                'application_id' => $application->id,
+                'stage_key'      => 'submit',
+                'status'         => $application->current_status->value,
+                'updated_by'     => $applicant->id,
+                'description'    => "{$applicantName} started a new application : {$application->project_title}",
+            ]);
+            $application->upsertProgress('submit', ApplicationStatus::PENDING);
 
-            return compact('applicant', 'organization', 'application');
+            return compact('applicant', 'organization', 'application', 'isNew');
         });
 
-        // 4. Emails (outside the transaction — never send mail inside a DB transaction).
-        // The submission has already succeeded, so email is best-effort: a mail failure
-        // must not turn a successful submission into an error response.
+        // Emails (outside the transaction — never send mail inside a DB transaction).
+        // Best-effort so a mail hiccup never fails a successful submission.
         try {
-            $result['applicant']->sendEmailVerificationNotification();
-            $result['applicant']->notify(new ApplicationReceived($result['application']));
-
-            if ($intake = config('app.application_intake_email')) {
-                Notification::route('mail', $intake)->notify(new NewApplicationSubmitted(
-                    $result['application'],
-                    trim("{$result['applicant']->first_name} {$result['applicant']->last_name}"),
-                    $result['organization']->name,
-                ));
+            // New accounts additionally need to verify their email and set a password
+            if ($result['isNew']) {
+                $result['applicant']->sendEmailVerificationNotification();
+                PasswordBroker::sendResetLink(['email' => $result['applicant']->email]);
             }
+            // Common to both: "a new application draft was created, come and submit it"
+            $result['applicant']->notify(new ApplicationReceived($result['application']));
         } catch (\Throwable $e) {
             report($e);
         }
 
+        $message = $result['isNew']
+            ? 'Your application has been saved as a draft. Check your email to verify your address and set a password, then sign in to review and submit it.'
+            : 'Your application has been saved as a draft under your existing account. Sign in to review and submit it — we\'ve emailed you the details.';
+
         return response()->json([
-            'message'        => 'Application submitted successfully. Please check your email to verify your address.',
+            'message'        => $message,
+            'is_new_user'    => $result['isNew'],
             'application_id' => $result['application']->id,
         ], 201);
+    }
+
+    // Notify the intake inbox that an application has entered review (best-effort)
+    private function notifyStaffOfSubmission(Application $application, User $applicant): void
+    {
+        if (! $intake = config('app.application_intake_email')) {
+            return;
+        }
+        try {
+            Notification::route('mail', $intake)->notify(new NewApplicationSubmitted(
+                $application,
+                $this->fullName($applicant),
+                $application->organization?->name ?? '',
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     // Resolve an existing organization by id, or create a new one from the payload
@@ -167,26 +191,26 @@ class ApplicationController extends Controller
     private function organizationRules(string $orgRequired): array
     {
         return [
-            // Either pick an existing org, or register a new one (fields required only when new)
+            // Either pick an existing org, or register a new one (all fields required when new)
             'organization.organization_id'           => ['nullable', 'exists:organizations,id'],
             'organization.name'                      => [$orgRequired, 'string', 'max:255'],
-            'organization.registration_number'       => ['nullable', 'string', 'max:255'],
-            'organization.legal_status'              => ['nullable', 'string', 'max:255'],
+            'organization.registration_number'       => [$orgRequired, 'string', 'max:255'],
+            'organization.legal_status'              => [$orgRequired, 'string', 'max:255'],
             'organization.type'                      => [$orgRequired, 'string', 'max:255'],
-            'organization.founded_year'              => ['nullable', 'integer', 'min:1800', 'max:' . (date('Y') + 1)],
+            'organization.founded_year'              => [$orgRequired, 'integer', 'min:1800', 'max:' . (date('Y') + 1)],
             'organization.registered_country'        => [$orgRequired, 'string', 'max:255'],
-            'organization.registered_state_province' => ['nullable', 'string', 'max:255'],
+            'organization.registered_state_province' => [$orgRequired, 'string', 'max:255'],
             'organization.registered_city'           => [$orgRequired, 'string', 'max:255'],
             'organization.registered_address_line1'  => [$orgRequired, 'string', 'max:255'],
             'organization.registered_address_line2'  => ['nullable', 'string', 'max:255'],
-            'organization.registered_postal_code'    => ['nullable', 'string', 'max:255'],
-            'organization.contact_email'             => ['nullable', 'email', 'max:255'],
-            'organization.contact_phone'             => ['nullable', 'string', 'max:255'],
-            'organization.website_url'               => ['nullable', 'url', 'max:255'],
-            'organization.currency'                  => ['nullable', 'string', 'size:3'],
-            'organization.annual_income'             => ['nullable', 'numeric', 'min:0'],
-            'organization.annual_expenditure'        => ['nullable', 'numeric', 'min:0'],
-            'organization.reserves_policy'           => ['nullable', 'string'],
+            'organization.registered_postal_code'    => [$orgRequired, 'string', 'max:255'],
+            'organization.contact_email'             => [$orgRequired, 'email', 'max:255'],
+            'organization.contact_phone'             => [$orgRequired, 'string', 'max:255'],
+            'organization.website_url'               => [$orgRequired, 'url', 'max:255'],
+            'organization.currency'                  => [$orgRequired, 'string', 'size:3'],
+            'organization.annual_income'             => [$orgRequired, 'numeric', 'min:0'],
+            'organization.annual_expenditure'        => [$orgRequired, 'numeric', 'min:0'],
+            'organization.reserves_policy'           => [$orgRequired, 'string'],
         ];
     }
 
@@ -194,7 +218,7 @@ class ApplicationController extends Controller
     {
         return [
             'project.project_title'    => ['required', 'string', 'max:255'],
-            'project.currency'         => ['nullable', 'string', 'size:3'],
+            'project.currency'         => ['required', 'string', 'size:3'],
             'project.requested_amount' => ['required', 'numeric', 'min:0'],
             'project.project_location' => ['required', 'string', 'max:255'],
 
@@ -308,6 +332,10 @@ class ApplicationController extends Controller
             return $application;
         });
 
+        if ($validated['action'] === 'submit') {
+            $this->notifyStaffOfSubmission($application->load('organization'), $request->user());
+        }
+
         return response()->json([
             'message'        => $validated['action'] === 'submit'
                 ? 'Application submitted for review.'
@@ -345,6 +373,10 @@ class ApplicationController extends Controller
                 $application->saveDraft($user->id, $name);
             }
         });
+
+        if ($validated['action'] === 'submit') {
+            $this->notifyStaffOfSubmission($application->load('organization'), $request->user());
+        }
 
         return response()->json([
             'message'        => $validated['action'] === 'submit'

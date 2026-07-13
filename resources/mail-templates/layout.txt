@@ -1,0 +1,8 @@
+WRBLO
+=======================================
+
+{{ CONTENT }}
+
+---------------------------------------
+(c) {{ YEAR }} WRBLO. All rights reserved.
+This is an automated message from {{ APP_NAME }}. Please do not reply.
