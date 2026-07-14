@@ -32,9 +32,13 @@ class Stage extends Model
      */
     public static function cached(): Collection
     {
-        return Cache::rememberForever(
+        // Cache plain arrays (not Eloquent models) to avoid fragile object
+        // serialization, then rehydrate into Stage models on read.
+        $rows = Cache::rememberForever(
             self::CACHE_KEY,
-            fn () => self::orderBy('order')->get(),
+            fn () => self::orderBy('order')->get()->toArray(),
         );
+
+        return self::hydrate($rows);
     }
 }

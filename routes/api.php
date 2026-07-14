@@ -22,6 +22,8 @@ Route::middleware(['auth:sanctum', 'active', 'role:admin'])
         Route::get('/users/{user}/logs', [UserController::class, 'logs']);
         Route::patch('/users/{user}/allow', [UserController::class, 'allow']);
         Route::patch('/users/{user}/block', [UserController::class, 'block']);
+        Route::patch('/users/{user}/verify-email', [UserController::class, 'toggleEmailVerification']);
+        Route::put('/users/{user}/password', [UserController::class, 'updatePassword']);
         Route::patch('/users/{user}', [UserController::class, 'update']);
 
         Route::get('/organizations', [OrganizationController::class, 'index']);

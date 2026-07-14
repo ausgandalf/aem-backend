@@ -7,7 +7,9 @@ use App\Models\User;
 use App\Models\UserLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UserController extends Controller
 {
@@ -140,6 +142,49 @@ class UserController extends Controller
 
         return response()->json([
             'message' => 'User updated successfully',
+            'user'    => $user->fresh(['organization']),
+        ]);
+    }
+
+    // PUT /api/admin/users/{user}/password - admin sets a new password for the user
+    public function updatePassword(Request $request, User $user): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+        ]);
+
+        $user->update(['password' => Hash::make($validated['password'])]);
+
+        UserLog::create([
+            'user_id'     => $user->id,
+            'action'      => 'password-changed',
+            'actioned_by' => auth()->id(),
+            'details'     => 'Password changed by admin',
+        ]);
+
+        return response()->json(['message' => 'Password updated successfully']);
+    }
+
+    // PATCH /api/admin/users/{user}/verify-email - toggle the email verified state
+    public function toggleEmailVerification(User $user): JsonResponse
+    {
+        $markVerified = is_null($user->email_verified_at);
+
+        // Set directly rather than mass-assign: email_verified_at is not fillable
+        $user->email_verified_at = $markVerified ? now() : null;
+        $user->save();
+
+        UserLog::create([
+            'user_id'     => $user->id,
+            'action'      => $markVerified ? 'email-verified' : 'email-unverified',
+            'actioned_by' => auth()->id(),
+            'details'     => $markVerified
+                ? 'Email marked verified by admin'
+                : 'Email marked unverified by admin',
+        ]);
+
+        return response()->json([
+            'message' => $markVerified ? 'Email marked as verified' : 'Email marked as unverified',
             'user'    => $user->fresh(['organization']),
         ]);
     }
