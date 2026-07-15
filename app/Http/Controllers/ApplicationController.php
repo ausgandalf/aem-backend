@@ -66,7 +66,7 @@ class ApplicationController extends Controller
             }
 
             // 3. Create the application as a DRAFT at the submit stage.
-            //    The applicant must return to AEM and hit Submit to send it to review.
+            //    The applicant must return to ARM and hit Submit to send it to review.
             $application = Application::create([
                 'applicant_id'     => $applicant->id,
                 'organization_id'  => $organization->id,

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\RetryingFilesystem;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 
@@ -13,6 +14,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         //
+        $this->app->singleton('files', function () {
+            return new RetryingFilesystem();
+        });
     }
 
     /**

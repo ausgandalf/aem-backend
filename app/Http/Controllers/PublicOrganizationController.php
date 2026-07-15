@@ -12,6 +12,7 @@ class PublicOrganizationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $organizations = Organization::query()
+            ->where('status', '<>', 'off')
             ->when($request->search, function ($q) use ($request) {
                 $q->where(function ($q) use ($request) {
                     $q->where('name', 'ilike', "%{$request->search}%")

@@ -1,0 +1,10 @@
+NEW APPLICATION DRAFT CREATED
+
+Hello {{ NAME }},
+
+This is a test email sent to {{ TO }}.
+
+You can loin into WRBLO ARM here:
+{{ LOGIN_URL }}
+
+As this is the test email, you can safely ignore this email.
