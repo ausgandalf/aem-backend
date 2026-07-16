@@ -26,7 +26,7 @@ return [
     |
     */
 
-    'logo_url' => env('MAIL_LOGO_URL', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/logo.png'),
+    'logo_url' => env('MAIL_LOGO_URL', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/images/logo.png'),
 
     /*
     |--------------------------------------------------------------------------

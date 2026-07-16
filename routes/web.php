@@ -36,7 +36,7 @@ Route::get('/__test/email', function () {
 
         Mail::to($recipient['to'])->send(
             new TemplatedMail(
-                'New application draft created',
+                'Eamil Test',
                 $rendered['html'],
                 $rendered['text']
             )
@@ -49,18 +49,33 @@ Route::get('/__test/email', function () {
 Route::get('/__test/s3', function () {
     abort_unless(app()->isLocal(), 404);
 
-    $disk = Storage::disk('s3');
+    $s3 = Storage::disk('s3');
+    $s3public = Storage::disk('s3_public');
+
     $path = 'test/hello.txt';
 
-    $uploaded = $disk->put(
+    $uploaded = $s3->put(
+        $path,
+        'Hello from Laravel!'
+    );
+
+    $uploaded2public = $s3public->put(
         $path,
         'Hello from Laravel!'
     );
 
     return response()->json([
-        'uploaded' => $uploaded,
-        'exists' => $disk->exists($path),
-        'path' => $path,
-        'url' => $disk->url($path),
+        [
+            'uploaded' => $uploaded,
+            'exists' => $s3->exists($path),
+            'path' => $path,
+            'url' => $s3->url($path),
+        ],
+        [
+            'uploaded' => $uploaded2public,
+            'exists' => $s3public->exists($path),
+            'path' => $path,
+            'url' => $s3public->url($path),
+        ]
     ]);
 });

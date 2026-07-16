@@ -13,10 +13,8 @@ return new class extends Migration
     {
         Schema::create('inspections', function (Blueprint $table) {
             $table->id();
-            $table->string('label');
-            $table->string('description');
             $table->string('stage_key');
-            $table->smallInteger('order')->default(0)->index();
+            $table->string('sector_key');
             
             $table->string('status')->default('pending')->index(); // pending/passed/rejected, or something(TBD)            
             $table->foreignId('updated_by')->nullable()->constrained('users');
@@ -26,6 +24,11 @@ return new class extends Migration
             $table->foreign('stage_key')
                 ->references('key')
                 ->on('stages')
+                ->onUpdate('cascade');
+
+            $table->foreign('sector_key')
+                ->references('key')
+                ->on('sectors')
                 ->onUpdate('cascade');
         });
     }

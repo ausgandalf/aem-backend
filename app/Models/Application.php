@@ -68,6 +68,11 @@ class Application extends Model
         return $this->hasMany(Progress::class);
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(Document::class);
+    }
+
     /**
      * The workflow engine: move prev/current stage+status, write an audit log,
      * and upsert the per-stage progress snapshot(s). Every stage move goes through here.

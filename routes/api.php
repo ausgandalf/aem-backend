@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicOrganizationController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\StageController;
+use App\Http\Controllers\DocumentController;
 
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
@@ -81,4 +82,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::post('/applications', [ApplicationController::class, 'store']);
     Route::get('/applications/{application}', [ApplicationController::class, 'show']);
     Route::patch('/applications/{application}', [ApplicationController::class, 'update']);
+
+    // Documents (direct-to-S3 upload flow, keyed under documents/{application_id}/)
+    Route::post('/applications/{application}/documents/presign', [DocumentController::class, 'presign']);
+    Route::get('/applications/{application}/documents', [DocumentController::class, 'index']);
+    Route::post('/applications/{application}/documents', [DocumentController::class, 'store']);
+    Route::patch('/applications/{application}/documents/{document}', [DocumentController::class, 'update']);
 });

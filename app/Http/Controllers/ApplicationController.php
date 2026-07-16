@@ -265,12 +265,14 @@ class ApplicationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $applications = Application::query()
-            ->where('applicant_id', $request->user()->id)
-            ->latest()
-            ->get([
+            ->select([
                 'id', 'project_title', 'requested_amount', 'currency',
                 'current_stage', 'current_status', 'prev_stage', 'prev_status', 'created_at',
-            ]);
+            ])
+            ->withCount('documents')
+            ->where('applicant_id', $request->user()->id)
+            ->latest()
+            ->get();
 
         return response()->json($applications);
     }
@@ -280,6 +282,7 @@ class ApplicationController extends Controller
     {
         $this->authorizeOwner($request, $application);
         $application->load('organization');
+        $application->loadCount('documents');
 
         $progressMap = $application->progresses()->get()->keyBy('stage_key');
         $progress = Stage::cached()->map(fn (Stage $s) => [
