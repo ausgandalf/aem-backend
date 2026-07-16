@@ -30,6 +30,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Email Logo File (preferred)
+    |--------------------------------------------------------------------------
+    |
+    | Local path of the logo to EMBED inside outgoing emails (CID inline
+    | attachment). Embedding beats linking: remote URLs — especially localhost —
+    | are unreachable for real recipients and for Gmail/Outlook image proxies.
+    | When this file exists it is used; otherwise emails fall back to logo_url.
+    |
+    */
+
+    'logo_path' => env('MAIL_LOGO_PATH', resource_path('mail-templates/assets/logo.png')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------
     |

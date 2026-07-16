@@ -28,6 +28,14 @@ class TemplatedMail extends Mailable
             ->html($this->htmlBody)
             ->withSymfonyMessage(function (Email $email) {
                 $email->text($this->textBody);
+
+                // Embed the logo inline (cid) so it renders for real recipients —
+                // remote (especially localhost) URLs are unreachable for them
+                // and for the Gmail/Outlook image proxies.
+                $logo = config('mail.logo_path');
+                if ($logo && is_file($logo) && str_contains($this->htmlBody, 'cid:wrblo-logo')) {
+                    $email->embedFromPath($logo, 'wrblo-logo');
+                }
             });
     }
 }

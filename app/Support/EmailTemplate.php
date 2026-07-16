@@ -24,7 +24,7 @@ class EmailTemplate
         $globals = [
             'APP_NAME' => config('app.name', 'WRBLO'),
             'YEAR'     => date('Y'),
-            'LOGO_URL' => config('mail.logo_url'),
+            'LOGO_URL' => self::logoSrc(),
             'APP_URL'  => rtrim((string) config('app.frontend_url'), '/'),
         ];
         $vars = array_merge($globals, $vars);
@@ -41,6 +41,22 @@ class EmailTemplate
         $layout = self::substitute(self::read('layout', $ext), $vars + ['CONTENT' => $body]);
 
         return self::stripLeftovers($layout);
+    }
+
+    /**
+     * Prefer an embedded (cid) logo: TemplatedMail attaches the local file
+     * inline, so the image travels WITH the email instead of being fetched
+     * from a URL that real recipients (and Gmail's image proxy) can't reach.
+     */
+    private static function logoSrc(): string
+    {
+        $path = config('mail.logo_path');
+
+        if ($path && is_file($path)) {
+            return 'cid:wrblo-logo';
+        }
+
+        return (string) config('mail.logo_url'); // hosted fallback
     }
 
     private static function read(string $name, string $ext): string
