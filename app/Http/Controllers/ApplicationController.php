@@ -281,7 +281,10 @@ class ApplicationController extends Controller
     public function show(Request $request, Application $application): JsonResponse
     {
         $this->authorizeOwner($request, $application);
-        $application->load('organization');
+        $application->load([
+            'organization',
+            'applicant:id,first_name,middle_name,last_name,email,phone,position,preferred_contact',
+        ]);
         $application->loadCount('documents');
 
         $progressMap = $application->progresses()->get()->keyBy('stage_key');
