@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
 
 class Stage extends Model
@@ -17,6 +18,12 @@ class Stage extends Model
         'order',
         'status',
     ];
+
+    // A stage's sectors, linked by the stage's string key, kept in display order.
+    public function sectors(): HasMany
+    {
+        return $this->hasMany(Sector::class, 'stage_key', 'key')->orderBy('order');
+    }
 
     // Flush the cache whenever a stage is created/updated/deleted
     protected static function booted(): void
@@ -40,5 +47,16 @@ class Stage extends Model
         );
 
         return self::hydrate($rows);
+    }
+
+    /**
+     * Only stages that are switched on, in order — used for anything applicant-
+     * facing (e.g. the progress diagram). Retired stages have status 'off'.
+     *
+     * @return Collection<int, Stage>
+     */
+    public static function visible(): Collection
+    {
+        return self::cached()->where('status', 'on')->values();
     }
 }

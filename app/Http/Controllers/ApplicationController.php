@@ -288,7 +288,9 @@ class ApplicationController extends Controller
         $application->loadCount('documents');
 
         $progressMap = $application->progresses()->get()->keyBy('stage_key');
-        $progress = Stage::cached()->map(fn (Stage $s) => [
+        // Only switched-on stages appear in the progress diagram; retired (off)
+        // stages are hidden even if the application has history against them.
+        $progress = Stage::visible()->map(fn (Stage $s) => [
             'key'    => $s->key,
             'label'  => $s->label,
             'order'  => $s->order,

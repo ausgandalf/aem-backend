@@ -25,6 +25,13 @@ return new class extends Migration
             $table->jsonb('metadata')->nullable();
 
             $table->timestamps();
+
+            // Audit trail references the stage it happened on. onUpdate cascade keeps
+            // it in sync; no onDelete rule (stages are retired via status, not deleted).
+            $table->foreign('stage_key')
+                ->references('key')
+                ->on('stages')
+                ->onUpdate('cascade');
         });
     }
 

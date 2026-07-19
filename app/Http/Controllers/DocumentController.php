@@ -51,7 +51,7 @@ class DocumentController extends Controller
         $this->authorizeAccess($user, $application);
 
         $documents = $application->documents()
-            ->with(['file', 'creator:id,first_name,last_name'])
+            ->with(['file', 'creator:id,first_name,last_name', 'updater:id,first_name,last_name'])
             ->visibleTo($user)
             ->latest()
             ->get()
@@ -116,7 +116,7 @@ class DocumentController extends Controller
                 'description'    => "{$name} uploaded document: {$file->original_name}",
             ]);
 
-            return $document->load(['file', 'creator']);
+            return $document->load(['file', 'creator', 'updater']);
         });
 
         return response()->json($this->present($document), 201);
@@ -137,7 +137,7 @@ class DocumentController extends Controller
         ]);
 
         $document->update([...$validated, 'updated_by' => $user->id]);
-        $document->load(['file', 'creator']);
+        $document->load(['file', 'creator', 'updater']);
 
         $name = preg_replace('/\s+/', ' ', trim("{$user->first_name} {$user->last_name}"));
         ApplicationLog::record([
@@ -175,6 +175,10 @@ class DocumentController extends Controller
             'submitted_by' => $d->creator
                 ? preg_replace('/\s+/', ' ', trim("{$d->creator->first_name} {$d->creator->last_name}"))
                 : null,
+            'updated_by' => $d->updater
+                ? preg_replace('/\s+/', ' ', trim("{$d->updater->first_name} {$d->updater->last_name}"))
+                : null,
+            'updated_at' => $d->updated_at,
             'file'        => [
                 'original_name' => $d->file->original_name,
                 'mime_type'     => $d->file->mime_type,

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\OrganizationController;
+use App\Http\Controllers\Admin\StageController as AdminStageController;
+use App\Http\Controllers\Admin\SectorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicOrganizationController;
 use App\Http\Controllers\ApplicationController;
@@ -32,6 +34,17 @@ Route::middleware(['auth:sanctum', 'active', 'role:admin'])
         Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
         Route::patch('/organizations/{organization}', [OrganizationController::class, 'update']);
         Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
+
+        // Stage / Sector management
+        Route::get('/stages', [AdminStageController::class, 'index']);
+        Route::post('/stages', [AdminStageController::class, 'store']);
+        Route::post('/stages/reorder', [AdminStageController::class, 'reorder']);
+        Route::patch('/stages/{stage}', [AdminStageController::class, 'update']);
+
+        Route::post('/stages/{stage}/sectors', [SectorController::class, 'store']);
+        Route::post('/stages/{stage}/sectors/reorder', [SectorController::class, 'reorder']);
+        Route::patch('/sectors/{sector}', [SectorController::class, 'update']);
+        Route::delete('/sectors/{sector}', [SectorController::class, 'destroy']);
     });
 
     

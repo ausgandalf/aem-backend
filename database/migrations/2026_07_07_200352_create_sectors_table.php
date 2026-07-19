@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('key')->unique();
             $table->string('label');
-            $table->string('description');
+            $table->string('description')->nullable();
             $table->string('stage_key');
             $table->smallInteger('order')->default(0)->index();
             $table->timestamps();
