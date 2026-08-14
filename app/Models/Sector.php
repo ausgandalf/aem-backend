@@ -11,6 +11,7 @@ class Sector extends Model
         'key',
         'label',
         'description',
+        'section',
         'stage_key',
         'order',
     ];

@@ -26,7 +26,8 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('stage_key')->references('key')->on('stages')->onUpdate('cascade');
-            $table->foreign('sector_key')->references('key')->on('sectors')->onUpdate('cascade');
+            // sector_key is a loose reference (no FK) — sectors are admin-managed and
+            // freely deletable; a document just records which sector it related to.
         });
     }
 

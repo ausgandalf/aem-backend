@@ -15,6 +15,8 @@ use App\Http\Controllers\PublicOrganizationController;
 use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\StageController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\InspectionController;
+use App\Http\Controllers\Officer\OfficerApplicationController;
 
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
@@ -101,4 +103,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
     Route::get('/applications/{application}/documents', [DocumentController::class, 'index']);
     Route::post('/applications/{application}/documents', [DocumentController::class, 'store']);
     Route::patch('/applications/{application}/documents/{document}', [DocumentController::class, 'update']);
+    Route::delete('/applications/{application}/documents/{document}', [DocumentController::class, 'destroy']);
+
+    // Officer review queue + per-stage Process page
+    Route::get('/officer/applications', [OfficerApplicationController::class, 'index']);
+    Route::get('/applications/{application}/process/{stage}', [OfficerApplicationController::class, 'process']);
+    Route::patch('/inspections/{inspection}', [InspectionController::class, 'update']);
 });

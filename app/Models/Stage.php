@@ -59,4 +59,16 @@ class Stage extends Model
     {
         return self::cached()->where('status', 'on')->values();
     }
+
+    /**
+     * On-stages handled by any of the given role names, in order. Used to build
+     * an officer's queue (a role may own more than one stage).
+     *
+     * @param  array<int, string>  $roles
+     * @return Collection<int, Stage>
+     */
+    public static function forRoles(array $roles): Collection
+    {
+        return self::visible()->whereIn('role', $roles)->values();
+    }
 }

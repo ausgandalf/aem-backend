@@ -94,6 +94,7 @@ class StageController extends Controller
                 'id'          => $sec->id,
                 'key'         => $sec->key,
                 'label'       => $sec->label,
+                'section'     => $sec->section,
                 'description' => $sec->description,
                 'stage_key'   => $sec->stage_key,
                 'order'       => $sec->order,

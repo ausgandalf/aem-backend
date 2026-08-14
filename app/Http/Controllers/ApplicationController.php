@@ -277,10 +277,15 @@ class ApplicationController extends Controller
         return response()->json($applications);
     }
 
-    // GET /api/applications/{application} - full details + ordered progress (own only)
+    // GET /api/applications/{application} - full details + ordered progress.
+    // Applicants may only see their own; any staff member (non-applicant role) may
+    // view any application (needed for the officer Summary drawer).
     public function show(Request $request, Application $application): JsonResponse
     {
-        $this->authorizeOwner($request, $application);
+        $user = $request->user();
+        $isOwner = $application->applicant_id === $user->id;
+        $isStaff = $user->getRoleNames()->contains(fn ($r) => $r !== 'applicant');
+        abort_unless($isOwner || $isStaff, 403, 'You cannot view this application.');
         $application->load([
             'organization',
             'applicant:id,first_name,middle_name,last_name,email,phone,position,preferred_contact',

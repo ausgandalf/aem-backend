@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             StageSeeder::class,
             OrganizationSeeder::class,
             AdminSeeder::class,
+            TestUserSeeder::class,
         ]);
     }
 }

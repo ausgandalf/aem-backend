@@ -19,6 +19,7 @@ class SectorController extends Controller
         $validated = $request->validate([
             'key'         => ['required', 'string', 'max:255', 'alpha_dash', 'unique:sectors,key'],
             'label'       => ['required', 'string', 'max:255'],
+            'section'     => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -36,6 +37,7 @@ class SectorController extends Controller
         $validated = $request->validate([
             'key'         => ['required', 'string', 'max:255', 'alpha_dash', Rule::unique('sectors', 'key')->ignore($sector->id)],
             'label'       => ['required', 'string', 'max:255'],
+            'section'     => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -76,6 +78,7 @@ class SectorController extends Controller
             'id'          => $s->id,
             'key'         => $s->key,
             'label'       => $s->label,
+            'section'     => $s->section,
             'description' => $s->description,
             'stage_key'   => $s->stage_key,
             'order'       => $s->order,

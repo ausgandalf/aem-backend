@@ -74,6 +74,10 @@ class DocumentController extends Controller
             'about'         => ['nullable', 'string'],
             'tags'          => ['nullable', 'string', 'max:1000'],
             'description'   => ['nullable', 'string'],
+            // Officer uploads on the Process page attach to a specific stage+sector.
+            // Omitted (applicant flow) → defaults to the application's current stage.
+            'stage_key'     => ['nullable', 'string', 'exists:stages,key'],
+            'sector_key'    => ['nullable', 'string', 'max:255'],
         ]);
 
         $disk = Storage::disk('s3');
@@ -100,7 +104,8 @@ class DocumentController extends Controller
             $document = Document::create([
                 'file_id'        => $file->id,
                 'application_id' => $application->id,
-                'stage_key'      => $application->current_stage,
+                'stage_key'      => $validated['stage_key'] ?? $application->current_stage,
+                'sector_key'     => $validated['sector_key'] ?? null,
                 'description'    => $validated['description'] ?? null,
                 'flag'           => 'ok',
                 'created_by'     => $user->id, // original attacher — never touched again
@@ -149,6 +154,46 @@ class DocumentController extends Controller
         ]);
 
         return response()->json($this->present($document));
+    }
+
+    // DELETE /api/applications/{application}/documents/{document}
+    // Only the ORIGINAL uploader may delete their file. Removes the S3 object,
+    // the file row and the document row, and records an audit log entry.
+    public function destroy(Request $request, Application $application, Document $document): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeAccess($user, $application);
+        abort_unless($document->application_id === $application->id, 404);
+        abort_unless($document->created_by === $user->id, 403, 'Only the uploader can delete this file.');
+
+        $document->load('file');
+        $fileName = $document->file?->original_name ?? 'file';
+
+        DB::transaction(function () use ($document, $user, $application, $fileName) {
+            $file = $document->file;
+
+            $name = preg_replace('/\s+/', ' ', trim("{$user->first_name} {$user->last_name}"));
+            ApplicationLog::record([
+                'application_id' => $application->id,
+                'stage_key'      => $document->stage_key,
+                'document_id'    => $document->id,
+                'updated_by'     => $user->id,
+                'description'    => "{$name} deleted document: {$fileName}",
+            ]);
+
+            $document->delete();
+
+            if ($file) {
+                try {
+                    Storage::disk($file->disk)->delete($file->object_key);
+                } catch (\Throwable $e) {
+                    report($e); // best-effort; the DB record is already gone
+                }
+                $file->delete();
+            }
+        });
+
+        return response()->json(['message' => 'Document deleted']);
     }
 
     // Applicants may only touch their own application; staff may touch any.
