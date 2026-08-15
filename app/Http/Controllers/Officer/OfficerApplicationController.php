@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Officer;
 
+use App\Enums\ApplicationStatus;
+use App\Enums\InspectionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\Document;
@@ -9,9 +11,13 @@ use App\Models\Inspection;
 use App\Models\Sector;
 use App\Models\Stage;
 use App\Models\User;
+use App\Notifications\ApplicationStageChanged;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class OfficerApplicationController extends Controller
 {
@@ -35,7 +41,7 @@ class OfficerApplicationController extends Controller
                     'id', 'project_title', 'requested_amount', 'currency',
                     'current_stage', 'current_status', 'prev_stage', 'prev_status', 'created_at',
                 ])
-                ->withCount('documents')
+                ->withCount(['documents as documents_count' => fn ($q) => $q->visibleTo($user)])
                 ->where('current_stage', $stage->key)
                 ->latest()
                 ->get(),
@@ -73,7 +79,7 @@ class OfficerApplicationController extends Controller
 
         // Documents for this application + stage, grouped by sector_key so each
         // inspection can show its own file list.
-        $docsBySector = Document::with(['file', 'creator:id,first_name,last_name'])
+        $docsBySector = Document::with(['file', 'creator:id,first_name,last_name', 'updater:id,first_name,last_name'])
             ->where('application_id', $application->id)
             ->where('stage_key', $stage)
             ->latest()
@@ -105,6 +111,128 @@ class OfficerApplicationController extends Controller
         ]);
     }
 
+    // POST /api/applications/{application}/process/{stage}/complete
+    // Record a Pass/Reject decision for the stage the application currently sits at.
+    // Pass → advances to the next stage; Reject → sends it back to a chosen earlier
+    // stage. Either way we move the workflow, snapshot progress, and (optionally)
+    // seed extra "Additional Inquiries" inspections at the target stage.
+    public function complete(Request $request, Application $application, string $stage): JsonResponse
+    {
+        $user  = $request->user();
+        $roles = $user->getRoleNames()->all();
+
+        $current = Stage::visible()->firstWhere('key', $stage);
+        abort_unless($current, 404, 'Stage not found.');
+        abort_unless(in_array($current->role, $roles, true), 403, 'You are not assigned to this stage.');
+        abort_unless($application->current_stage === $stage, 422, 'This application is not currently at this stage.');
+
+        $validated = $request->validate([
+            'decision'                  => ['required', 'in:pass,reject'],
+            'note'                      => ['nullable', 'string'],
+            'target_stage'              => ['nullable', 'string'],
+            'inspections'               => ['array'],
+            'inspections.*.label'       => ['required', 'string', 'max:255'],
+            'inspections.*.description' => ['nullable', 'string'],
+        ]);
+
+        $visible = Stage::visible();
+
+        if ($validated['decision'] === 'pass') {
+            $target   = $visible->where('order', '>', $current->order)->sortBy('order')->first();
+            $outgoing = ApplicationStatus::PASSED;
+        } else {
+            $target = $visible->firstWhere('key', $validated['target_stage'] ?? '');
+            abort_unless(
+                $target && $target->order < $current->order,
+                422,
+                'Choose an earlier stage to send this application back to.',
+            );
+            $outgoing = ApplicationStatus::REJECTED;
+        }
+
+        $name = preg_replace('/\s+/', ' ', trim("{$user->first_name} {$user->last_name}"));
+        $note = $validated['note'] ?? null;
+
+        DB::transaction(function () use ($application, $current, $target, $outgoing, $user, $name, $note, $validated) {
+            if ($target) {
+                $verb = $outgoing === ApplicationStatus::PASSED ? 'passed' : 'sent back';
+                $desc = "{$name} {$verb}: {$current->label} → {$target->label}";
+                $application->recordTransition($outgoing, $target->key, ApplicationStatus::PENDING, $user->id, $desc, $note);
+
+                if (! empty($validated['inspections'])) {
+                    $section = "Additional Inquiries from {$current->label}";
+                    foreach ($validated['inspections'] as $i => $item) {
+                        Inspection::create([
+                            'application_id'     => $application->id,
+                            'stage_key'          => $target->key,
+                            'sector_key'         => 'addl__' . (Str::slug($item['label']) ?: 'item') . '__' . Str::lower(Str::random(6)),
+                            'sector_label'       => $item['label'],
+                            'sector_description' => $item['description'] ?? null,
+                            'sector_section'     => $section,
+                            'sector_order'       => $i,
+                            'status'             => InspectionStatus::PENDING,
+                            'updated_by'         => $user->id,
+                        ]);
+                    }
+                }
+            } else {
+                // Passing the final stage — mark complete in place (no next stage).
+                $desc = "{$name} completed the final stage: {$current->label}";
+                $application->recordTransition($outgoing, $current->key, ApplicationStatus::PASSED, $user->id, $desc, $note);
+            }
+        });
+
+        // Alert the users assigned to the stage the application just arrived at.
+        // No-ops unless the master switch (config app.enable_email_notification) is on.
+        if ($target) {
+            $this->notifyStageRole(
+                $application,
+                $target,
+                $current->label,
+                $outgoing === ApplicationStatus::PASSED ? 'passed' : 'rejected',
+                $note,
+            );
+        }
+
+        return response()->json([
+            'message'       => 'Decision recorded.',
+            'current_stage' => $application->fresh()->current_stage,
+        ]);
+    }
+
+    // Email the active users whose role owns the destination stage that an
+    // application has been passed/rejected onto their desk. Fully wired but
+    // gated behind the ENABLE_EMAIL_NOTIFICATION master switch (default off).
+    private function notifyStageRole(
+        Application $application,
+        Stage $toStage,
+        string $fromStageLabel,
+        string $decision,
+        ?string $note,
+    ): void {
+        if (! config('app.enable_email_notification')) {
+            return; // logic is in place; it activates when the flag is turned on
+        }
+
+        $recipients = User::role($toStage->role)->where('status', 'active')->get();
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        try {
+            Notification::send($recipients, new ApplicationStageChanged(
+                $application->id,
+                $application->project_title,
+                $decision,
+                $fromStageLabel,
+                $toStage->label,
+                $note,
+            ));
+        } catch (\Throwable $e) {
+            report($e); // best-effort; never fail a recorded decision over email
+        }
+    }
+
     // Create an inspection (sector snapshot) for each of the stage's current
     // sectors that doesn't already have one for this application. Idempotent.
     private function ensureInspections(Application $application, string $stageKey): void
@@ -130,9 +258,15 @@ class OfficerApplicationController extends Controller
             'description' => $d->description,
             'flag'        => $d->flag,
             'flag_note'   => $d->flag_note,
+            'stage_key'   => $d->stage_key,
+            'sector_key'  => $d->sector_key,
             'created_at'  => $d->created_at,
+            'updated_at'  => $d->updated_at,
             'submitted_by' => $d->creator
                 ? preg_replace('/\s+/', ' ', trim("{$d->creator->first_name} {$d->creator->last_name}"))
+                : null,
+            'updated_by' => $d->updater
+                ? preg_replace('/\s+/', ' ', trim("{$d->updater->first_name} {$d->updater->last_name}"))
                 : null,
             'file' => [
                 'original_name' => $d->file->original_name,

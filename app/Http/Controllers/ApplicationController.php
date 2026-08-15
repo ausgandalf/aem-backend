@@ -264,13 +264,14 @@ class ApplicationController extends Controller
     // GET /api/applications - the authenticated applicant's own applications (cards)
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
         $applications = Application::query()
             ->select([
                 'id', 'project_title', 'requested_amount', 'currency',
                 'current_stage', 'current_status', 'prev_stage', 'prev_status', 'created_at',
             ])
-            ->withCount('documents')
-            ->where('applicant_id', $request->user()->id)
+            ->withCount(['documents as documents_count' => fn ($q) => $q->visibleTo($user)])
+            ->where('applicant_id', $user->id)
             ->latest()
             ->get();
 
@@ -290,7 +291,9 @@ class ApplicationController extends Controller
             'organization',
             'applicant:id,first_name,middle_name,last_name,email,phone,position,preferred_contact',
         ]);
-        $application->loadCount('documents');
+        // Count only the documents THIS user is allowed to see, so the header count
+        // matches the list they'll actually get from the documents endpoint.
+        $application->loadCount(['documents as documents_count' => fn ($q) => $q->visibleTo($user)]);
 
         $progressMap = $application->progresses()->get()->keyBy('stage_key');
         // Only switched-on stages appear in the progress diagram; retired (off)
@@ -395,6 +398,45 @@ class ApplicationController extends Controller
             'message'        => $validated['action'] === 'submit'
                 ? 'Application submitted for review.'
                 : 'Application saved.',
+            'application_id' => $application->id,
+        ]);
+    }
+
+    // PATCH /api/officer/applications/{application} - staff edit of org + project
+    // details at ANY stage. Never moves the workflow or touches status; that's the
+    // job of the Process "Complete" flow. Applicant (user) info is managed in admin.
+    public function officerUpdate(Request $request, Application $application): JsonResponse
+    {
+        $user = $request->user();
+        $isStaff = $user->getRoleNames()->contains(fn ($r) => $r !== 'applicant');
+        abort_unless($isStaff, 403, 'Only staff can edit applications here.');
+
+        $orgRequired = $request->input('organization.organization_id') ? 'nullable' : 'required';
+        $validated = $request->validate(array_merge(
+            $this->organizationRules($orgRequired),
+            $this->projectRules(),
+        ));
+
+        $name = $this->fullName($user);
+
+        DB::transaction(function () use ($validated, $user, $name, $application) {
+            $organization = $this->resolveOrganization($validated);
+
+            $application->update(array_merge(
+                $this->applicationAttributes($validated, $user->id),
+                ['organization_id' => $organization->id],
+            ));
+
+            ApplicationLog::record([
+                'application_id' => $application->id,
+                'stage_key'      => $application->current_stage,
+                'updated_by'     => $user->id,
+                'description'    => "{$name} edited application details: {$application->project_title}",
+            ]);
+        });
+
+        return response()->json([
+            'message'        => 'Application updated.',
             'application_id' => $application->id,
         ]);
     }

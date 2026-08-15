@@ -128,4 +128,8 @@ return [
     // Inbox that receives a notice when a new application is submitted
     'application_intake_email' => env('APPLICATION_INTAKE_EMAIL'),
 
+    // Master switch for workflow email notifications (stage pass/reject alerts).
+    // Kept OFF until we're ready to actually send; the logic is fully wired.
+    'enable_email_notification' => env('ENABLE_EMAIL_NOTIFICATION', false),
+
 ];

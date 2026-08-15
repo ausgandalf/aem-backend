@@ -1,0 +1,11 @@
+APPLICATION {{ DECISION }}
+
+The following application has been {{ DECISION }} at {{ FROM_STAGE }} and is now at
+your stage, {{ TO_STAGE }}. Please review it when you can.
+
+Project:    {{ PROJECT_TITLE }}
+Decision:   {{ DECISION }}
+From stage: {{ FROM_STAGE }}
+Now at:     {{ TO_STAGE }}
+{{ NOTE_TEXT }}
+Open application: {{ LINK }}

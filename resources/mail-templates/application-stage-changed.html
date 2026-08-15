@@ -1,0 +1,29 @@
+<h1 style="margin:0 0 16px;font-size:20px;color:#111827;">Application {{ DECISION }}</h1>
+<p style="margin:0 0 16px;">
+    The following application has been <strong>{{ DECISION }}</strong> at <strong>{{ FROM_STAGE }}</strong>
+    and is now at your stage, <strong>{{ TO_STAGE }}</strong>. Please review it when you can.
+</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#1f2937;">
+    <tr>
+        <td style="padding:6px 0;color:#6b7280;width:160px;">Project</td>
+        <td style="padding:6px 0;"><strong>{{ PROJECT_TITLE }}</strong></td>
+    </tr>
+    <tr>
+        <td style="padding:6px 0;color:#6b7280;">Decision</td>
+        <td style="padding:6px 0;text-transform:capitalize;">{{ DECISION }}</td>
+    </tr>
+    <tr>
+        <td style="padding:6px 0;color:#6b7280;">From stage</td>
+        <td style="padding:6px 0;">{{ FROM_STAGE }}</td>
+    </tr>
+    <tr>
+        <td style="padding:6px 0;color:#6b7280;">Now at</td>
+        <td style="padding:6px 0;">{{ TO_STAGE }}</td>
+    </tr>
+    {{ NOTE_BLOCK }}
+</table>
+<p style="margin:20px 0 0;">
+    <a href="{{ LINK }}" style="display:inline-block;background:#d39307;color:#000000;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;font-size:14px;">
+        Open application
+    </a>
+</p>

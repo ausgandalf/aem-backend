@@ -107,6 +107,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     // Officer review queue + per-stage Process page
     Route::get('/officer/applications', [OfficerApplicationController::class, 'index']);
+    Route::patch('/officer/applications/{application}', [ApplicationController::class, 'officerUpdate']);
     Route::get('/applications/{application}/process/{stage}', [OfficerApplicationController::class, 'process']);
+    Route::post('/applications/{application}/process/{stage}/complete', [OfficerApplicationController::class, 'complete']);
     Route::patch('/inspections/{inspection}', [InspectionController::class, 'update']);
 });
