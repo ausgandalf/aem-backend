@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             OrganizationSeeder::class,
             AdminSeeder::class,
             TestUserSeeder::class,
+            SectorSeeder::class,
         ]);
     }
 }
