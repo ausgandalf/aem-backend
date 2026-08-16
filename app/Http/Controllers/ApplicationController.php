@@ -296,6 +296,8 @@ class ApplicationController extends Controller
         $application->loadCount(['documents as documents_count' => fn ($q) => $q->visibleTo($user)]);
 
         $progressMap = $application->progresses()->get()->keyBy('stage_key');
+        // Progress notes are internal review remarks — only staff may see them.
+        $showNotes = $isStaff;
         // Only switched-on stages appear in the progress diagram; retired (off)
         // stages are hidden even if the application has history against them.
         $progress = Stage::visible()->map(fn (Stage $s) => [
@@ -303,7 +305,7 @@ class ApplicationController extends Controller
             'label'  => $s->label,
             'order'  => $s->order,
             'status' => optional($progressMap->get($s->key))->status?->value,
-            'note'   => optional($progressMap->get($s->key))->note,
+            'note'   => $showNotes ? optional($progressMap->get($s->key))->note : null,
         ])->values();
 
         return response()->json([

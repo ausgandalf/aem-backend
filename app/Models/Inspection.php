@@ -19,6 +19,7 @@ class Inspection extends Model
         'status',
         'note',
         'metadata',
+        'created_by',
         'updated_by',
     ];
 

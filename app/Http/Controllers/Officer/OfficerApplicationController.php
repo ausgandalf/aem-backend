@@ -171,6 +171,7 @@ class OfficerApplicationController extends Controller
                             'sector_section'     => $section,
                             'sector_order'       => $i,
                             'status'             => InspectionStatus::PENDING,
+                            'created_by'         => $user->id, // manually added → attribute it
                             'updated_by'         => $user->id,
                         ]);
                     }

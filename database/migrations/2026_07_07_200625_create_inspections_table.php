@@ -30,6 +30,9 @@ return new class extends Migration
             $table->string('status')->default('pending')->index(); // pending/passed/rejected, or something(TBD)
             $table->text('note')->nullable();
             $table->jsonb('metadata')->nullable();
+            // created_by is null for auto-snapshotted inspections; only set when an
+            // officer manually adds one via the Process "Complete" action.
+            $table->foreignId('created_by')->nullable()->constrained('users');
             $table->foreignId('updated_by')->nullable()->constrained('users');
 
             $table->timestamps();
