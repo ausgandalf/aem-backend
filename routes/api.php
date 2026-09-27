@@ -63,12 +63,22 @@ Route::post('/apply', [ApplicationController::class, 'quickApply'])->middleware(
 
 // ── Email verification ─────────────────────────────
 // The link in the email points here
-Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
-    $request->fulfill(); // marks email as verified + fires Verified event
-    
+Route::get('/email/verify/{id}/{hash}', function ($id, $hash) {
+    $user = User::findOrFail($id);
+
+    // Make sure the link matches this user's email
+    if (! hash_equals(sha1($user->getEmailForVerification()), (string) $hash)) {
+        abort(403, 'Invalid verification link.');
+    }
+
+    if (! $user->hasVerifiedEmail()) {
+        $user->markEmailAsVerified();
+        event(new Verified($user));
+    }
+
     // Redirect to frontend login page with success flag
     return redirect(config('app.frontend_url') . '/login?verified=1');
-})->middleware(['auth', 'signed'])->name('verification.verify');
+})->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
 
 // Resend verification email
 Route::post('/email/resend', function (Request $request) {
