@@ -18,6 +18,9 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\InspectionController;
 use App\Http\Controllers\Officer\OfficerApplicationController;
 
+use App\Models\User;
+use Illuminate\Auth\Events\Verified;
+
 // ── Admin routes ────────────────────────────────────
 Route::middleware(['auth:sanctum', 'active', 'role:admin'])
     ->prefix('admin')
