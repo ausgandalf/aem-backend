@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\UserLog;
 use App\Notifications\ApplicationReceived;
 use App\Notifications\NewApplicationSubmitted;
+use App\Notifications\QuickApplyWelcome;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,7 +51,9 @@ class ApplicationController extends Controller
                     'phone'             => $validated['applicant']['phone'] ?? null,
                     'password'          => Hash::make(Str::random(32)),
                     'role'              => 'applicant',
-                    'status'            => 'pending',
+                    // Quick Apply applicants are active immediately so they can sign in
+                    // after onboarding (set password → verified → in). No admin gate.
+                    'status'            => 'active',
                     'organization_id'   => $organization->id,
                     'position'          => $validated['applicant']['position'] ?? null,
                     'referred_from'     => $validated['applicant']['referred_from'] ?? null,
@@ -99,13 +102,15 @@ class ApplicationController extends Controller
         // Emails (outside the transaction — never send mail inside a DB transaction).
         // Best-effort so a mail hiccup never fails a successful submission.
         try {
-            // New accounts additionally need to verify their email and set a password
             if ($result['isNew']) {
-                $result['applicant']->sendEmailVerificationNotification();
-                PasswordBroker::sendResetLink(['email' => $result['applicant']->email]);
+                // ONE onboarding email: welcome + set-password link (+ verifies on
+                // completion). Avoids spamming a new user with 3 separate emails.
+                $token = PasswordBroker::createToken($result['applicant']);
+                $result['applicant']->notify(new QuickApplyWelcome($token, $result['application']));
+            } else {
+                // Existing account: just the "a new draft was created, come submit it" note.
+                $result['applicant']->notify(new ApplicationReceived($result['application']));
             }
-            // Common to both: "a new application draft was created, come and submit it"
-            $result['applicant']->notify(new ApplicationReceived($result['application']));
         } catch (\Throwable $e) {
             report($e);
         }

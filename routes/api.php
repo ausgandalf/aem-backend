@@ -58,6 +58,7 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
+Route::post('/email/verification/resend', [AuthController::class, 'resendVerification'])->middleware('throttle:10,1');
 Route::get('/roles', [RoleController::class, 'index']);
 
 // ── Quick Apply (public) ───────────────────────────

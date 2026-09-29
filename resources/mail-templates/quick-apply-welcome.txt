@@ -1,0 +1,15 @@
+WELCOME TO {{ APP_NAME }}
+
+Hello {{ NAME }},
+
+Thanks for starting your application. Your draft "{{ PROJECT_TITLE }}" has been saved.
+
+We've created an account for you. Set your password using the link below to
+finish signing in, then review and submit your application:
+
+{{ ACTION_URL }}
+
+This link will expire in {{ EXPIRE }} minutes. Setting your password also
+verifies your email — no separate step needed.
+
+If you didn't start this application, you can safely ignore this email.
